@@ -1,0 +1,20 @@
+{
+  "name": "ai-agent-3d-arena-pvp",
+  "version": "1.0.0",
+  "description": "多人竞技场系统 - 支持实时PVP、排位赛、锦标赛，专为AI Agent设计",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "ai-agent",
+    "pvp",
+    "game",
+    "three.js",
+    "arena",
+    "ranking",
+    "tournament"
+  ],
+  "author": "",
+  "license": "MIT"
+}
