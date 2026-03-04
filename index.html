@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 AI Agent 3D Arena PVP</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        #player-stats {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            pointer-events: auto;
+        }
+        
+        .stat-bar {
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 4px;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        
+        .bar-container {
+            width: 250px;
+            height: 20px;
+            background: rgba(0,0,0,0.6);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 8px;
+        }
+        
+        #health-fill {
+            background: linear-gradient(90deg, #ff3333, #ff6600);
+            box-shadow: 0 0 20px #ff3333;
+        }
+        
+        #mana-fill {
+            background: linear-gradient(90deg, #3366ff, #00ccff);
+            box-shadow: 0 0 20px #3366ff;
+        }
+        
+        #skills {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        
+        .skill-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #444;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .skill-slot:hover {
+            border-color: #ff9900;
+            transform: scale(1.1);
+        }
+        
+        .skill-slot.cooldown {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .skill-icon {
+            font-size: 24px;
+        }
+        
+        .skill-key {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 10px;
+            color: #888;
+        }
+        
+        .skill-cooldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        #scoreboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 200px;
+            pointer-events: auto;
+        }
+        
+        #scoreboard h3 {
+            color: #ff9900;
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .score-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            color: #ccc;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .score-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .score-entry.player {
+            color: #00ff88;
+        }
+        
+        #timer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 48px;
+            color: #fff;
+            text-shadow: 0 0 20px #ff9900;
+            pointer-events: auto;
+        }
+        
+        #game-mode {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            color: #aaa;
+            pointer-events: auto;
+        }
+        
+        #kill-feed {
+            position: absolute;
+            top: 120px;
+            left: 20px;
+            pointer-events: auto;
+        }
+        
+        .kill-entry {
+            background: rgba(0,0,0,0.6);
+            padding: 8px 15px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 14px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+        }
+        
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255,255,255,0.8);
+        }
+        
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #crosshair::after {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        
+        #start-screen h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 64px;
+            color: #ff9900;
+            text-shadow: 0 0 30px #ff6600, 0 0 60px #ff3300;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { text-shadow: 0 0 30px #ff6600, 0 0 60px #ff3300; }
+            50% { text-shadow: 0 0 50px #ff9900, 0 0 100px #ff6600; }
+        }
+        
+        #start-screen p {
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 40px;
+        }
+        
+        .game-mode-btn {
+            background: linear-gradient(135deg, #ff6600, #ff9900);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            color: #fff;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 10px;
+            font-family: 'Orbitron', sans-serif;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        
+        .game-mode-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #ff6600;
+        }
+        
+        #damage-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(circle, transparent 50%, rgba(255,0,0,0.3) 100%);
+            transition: opacity 0.1s;
+        }
+        
+        #winner-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        
+        #winner-screen h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 72px;
+            color: #ffd700;
+            text-shadow: 0 0 30px #ffd700;
+            margin-bottom: 20px;
+        }
+        
+        #winner-screen p {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="start-screen">
+            <h1>🎮 ARENA PVP</h1>
+            <p>AI Agent 3D 竞技场 - 最后的生存者获胜!</p>
+            <button class="game-mode-btn" onclick="startGame('ffa')">🔥 大逃杀模式</button>
+            <button class="game-mode-btn" onclick="startGame('team')">⚔️ 团队战</button>
+            <div style="margin-top: 40px; color: #666;">
+                <p>WASD - 移动 | 鼠标 - 视角 | 1-6 - 技能 | 左键 - 攻击</p>
+            </div>
+        </div>
+        
+        <div id="ui-overlay" style="display: none;">
+            <div id="timer">03:00</div>
+            <div id="game-mode">🏆 大逃杀 - 存活到最后!</div>
+            
+            <div id="scoreboard">
+                <h3>🏆 排行榜</h3>
+                <div id="score-list"></div>
+            </div>
+            
+            <div id="kill-feed"></div>
+            <div id="crosshair"></div>
+            
+            <div id="player-stats">
+                <div class="stat-bar">
+                    <div class="stat-label">❤️ 生命值: <span id="health-value">100</span></div>
+                    <div class="bar-container">
+                        <div class="bar-fill" id="health-fill" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stat-bar">
+                    <div class="stat-label">💙 法力值: <span id="mana-value">50</span></div>
+                    <div class="bar-container">
+                        <div class="bar-fill" id="mana-fill" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="skills">
+                <div class="skill-slot" onclick="useSkill(0)" data-key="1">
+                    <span class="skill-icon">🔥</span>
+                    <span class="skill-key">1</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" onclick="useSkill(1)" data-key="2">
+                    <span class="skill-icon">❄️</span>
+                    <span class="skill-key">2</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" onclick="useSkill(2)" data-key="3">
+                    <span class="skill-icon">💚</span>
+                    <span class="skill-key">3</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" onclick="useSkill(3)" data-key="4">
+                    <span class="skill-icon">🛡️</span>
+                    <span class="skill-key">4</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" onclick="useSkill(4)" data-key="5">
+                    <span class="skill-icon">✨</span>
+                    <span class="skill-key">5</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" onclick="useSkill(5)" data-key="6">
+                    <span class="skill-icon">⚡</span>
+                    <span class="skill-key">6</span>
+                    <div class="skill-cooldown-overlay"></div>
+                </div>
+            </div>
+            
+            <div id="damage-overlay"></div>
+        </div>
+        
+        <div id="winner-screen">
+            <h1 id="winner-text">🏆 胜利!</h1>
+            <p id="winner-stats"></p>
+            <button class="game-mode-btn" onclick="restartGame()">🔄 再来一局</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let player, playerModel;
+        let enemies = [];
+        let projectiles = [];
+        
+        let gameStarted = false;
+        let gameMode = 'ffa';
+        let timeRemaining = 180;
+        
+        let playerStats = {
+            health: 100,
+            maxHealth: 100,
+            mana: 50,
+            maxMana: 50,
+            kills: 0,
+            deaths: 0,
+            shield: false
+        };
+        
+        let skills = [
+            { name: '火球', cooldown: 3000, manaCost: 20, damage: 30, ready: true },
+            { name: '冰箭', cooldown: 2000, manaCost: 15, damage: 20, slow: true, ready: true },
+            { name: '治疗', cooldown: 8000, manaCost: 25, heal: 40, ready: true },
+            { name: '护盾', cooldown: 10000, manaCost: 30, shield: true, ready: true },
+            { name: '传送', cooldown: 15000, manaCost: 35, teleport: true, ready: true },
+            { name: '闪电', cooldown: 5000, manaCost: 40, damage: 50, aoe: true, ready: true }
+        ];
+        
+        let keys = { w: false, a: false, s: false, d: false };
+        let playerRotation = { x: 0, y: 0 };
+        
+        const ARENA_SIZE = 80;
+        
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.Fog(0x1a1a2e, 30, 120);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('game-container').appendChild(renderer.domElement);
+            
+            const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(50, 100, 50);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            const pointLight1 = new THREE.PointLight(0xff6600, 1, 50);
+            pointLight1.position.set(-20, 10, -20);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0x0066ff, 1, 50);
+            pointLight2.position.set(20, 10, 20);
+            scene.add(pointLight2);
+            
+            createArena();
+            createPlayer();
+            spawnEnemies(5);
+            
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('click', onClick);
+        }
+        
+        function createArena() {
+            const groundGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE, 20, 20);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a4a, roughness: 0.8, metalness: 0.2 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            const gridHelper = new THREE.GridHelper(ARENA_SIZE, 40, 0x444466, 0x333355);
+            scene.add(gridHelper);
+            
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a4a6a, transparent: true, opacity: 0.8 });
+            const wallHeight = 8;
+            const wallThickness = 2;
+            
+            const walls = [
+                { pos: [0, wallHeight/2, -ARENA_SIZE/2], size: [ARENA_SIZE, wallHeight, wallThickness] },
+                { pos: [0, wallHeight/2, ARENA_SIZE/2], size: [ARENA_SIZE, wallHeight, wallThickness] },
+                { pos: [-ARENA_SIZE/2, wallHeight/2, 0], size: [wallThickness, wallHeight, ARENA_SIZE] },
+                { pos: [ARENA_SIZE/2, wallHeight/2, 0], size: [wallThickness, wallHeight, ARENA_SIZE] }
+            ];
+            
+            walls.forEach(w => {
+                const geo = new THREE.BoxGeometry(...w.size);
+                const mesh = new THREE.Mesh(geo, wallMat);
+                mesh.position.set(...w.pos);
+                mesh.castShadow = true;
+                scene.add(mesh);
+            });
+            
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x3a3a5a });
+            const pillarPos = [[-20,0,-20],[20,0,-20],[-20,0,20],[20,0,20],[0,0,-15],[0,0,15],[-15,0,0],[15,0,0]];
+            pillarPos.forEach(pos => {
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 4), pillarMat);
+                pillar.position.set(pos[0], 3, pos[2]);
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                scene.add(pillar);
+            });
+            
+            const ringGeo = new THREE.TorusGeometry(35, 0.5, 8, 50);
+            const ringMat = new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0xff3300, emissiveIntensity: 0.3 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 0.5;
+            scene.add(ring);
+        }
+        
+        function createPlayer() {
+            playerModel = new THREE.Group();
+            
+            const bodyGeo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00ff88 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1;
+            body.castShadow = true;
+            playerModel.add(body);
+            
+            const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0x88ffaa });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 2;
+            head.castShadow = true;
+            playerModel.add(head);
+            
+            const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.15, 2.05, 0.35);
+            playerModel.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.15, 2.05, 0.35);
+            playerModel.add(rightEye);
+            
+            const glowGeo = new THREE.SphereGeometry(0.8, 16, 16);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.2 });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            glow.position.y = 1.2;
+            playerModel.add(glow);
+            
+            playerModel.position.set(0, 0, 30);
+            scene.add(playerModel);
+            player = playerModel;
+        }
+        
+        function spawnEnemies(count) {
+            const colors = [0xff3333, 0xff6600, 0xff00ff, 0x00ffff, 0xffff00];
+            const names = ['🤖 阿尔法', '🤖 贝塔', '🤖 伽马', '🤖 德尔塔', '🤖 伊普西龙'];
+            
+            for (let i = 0; i < count; i++) {
+                const enemy = new THREE.Group();
+                enemy.userData = {
+                    health: 80 + Math.random() * 40,
+                    maxHealth: 100,
+                    name: names[i % names.length],
+                    color: colors[i % colors.length],
+                    speed: 0.05 + Math.random() * 0.05
+                };
+                
+                const bodyGeo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: colors[i % colors.length] });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = 1;
+                body.castShadow = true;
+                enemy.add(body);
+                
+                const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 2;
+                head.castShadow = true;
+                enemy.add(head);
+                
+                const angle = (i / count) * Math.PI * 2;
+                const radius = 15 + Math.random() * 20;
+                enemy.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+                
+                scene.add(enemy);
+                enemies.push(enemy);
+            }
+            updateScoreboard();
+        }
+        
+        function createProjectile(origin, target, type) {
+            const colors = { fireball: 0xff6600, ice: 0x00ccff, lightning: 0xffff00 };
+            const geo = new THREE.SphereGeometry(0.3, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: colors[type] || 0xffffff });
+            const projectile = new THREE.Mesh(geo, mat);
+            projectile.position.copy(origin);
+            projectile.userData = {
+                velocity: target.clone().sub(origin).normalize().multiplyScalar(1),
+                type: type,
+                damage: 30,
+                life: 100
+            };
+            scene.add(projectile);
+            projectiles.push(projectile);
+        }
+        
+        function startGame(mode) {
+            gameMode = mode;
+            gameStarted = true;
+            timeRemaining = 180;
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('ui-overlay').style.display = 'block';
+            
+            playerStats = { health: 100, maxHealth: 100, mana: 50, maxMana: 50, kills: 0, deaths: 0, shield: false };
+            skills.forEach(s => s.ready = true);
+            
+            player.position.set(0, 0, 30);
+            updateUI();
+            
+            setInterval(() => {
+                if (gameStarted && timeRemaining > 0) {
+                    timeRemaining--;
+                    updateTimer();
+                }
+            }, 1000);
+        }
+        
+        function useSkill(index) {
+            if (!gameStarted) return;
+            const skill = skills[index];
+            if (!skill.ready || playerStats.mana < skill.manaCost) {
+                showMessage('💧 法力不足!');
+                return;
+            }
+            
+            playerStats.mana -= skill.manaCost;
+            skill.ready = false;
+            
+            const skillSlot = document.querySelectorAll('.skill-slot')[index];
+            const cooldownOverlay = skillSlot.querySelector('.skill-cooldown-overlay');
+            cooldownOverlay.style.display = 'flex';
+            
+            const skillDir = new THREE.Vector3(0, 0, -1);
+            skillDir.applyQuaternion(camera.quaternion);
+            
+            switch(index) {
+                case 0:
+                    createProjectile(player.position.clone(), player.position.clone().add(skillDir.multiplyScalar(10)), 'fireball');
+                    break;
+                case 1:
+                    createProjectile(player.position.clone(), player.position.clone().add(skillDir.multiplyScalar(10)), 'ice');
+                    break;
+                case 2:
+                    playerStats.health = Math.min(playerStats.health + skill.heal, playerStats.maxHealth);
+                    showMessage('💚 恢复生命!');
+                    break;
+                case 3:
+                    playerStats.shield = true;
+                    setTimeout(() => playerStats.shield = false, 3000);
+                    showMessage('🛡️ 护盾激活!');
+                    break;
+                case 4:
+                    player.position.x = (Math.random() - 0.5) * 60;
+                    player.position.z = (Math.random() - 0.5) * 60;
+                    showMessage('✨ 传送!');
+                    break;
+                case 5:
+                    enemies.forEach(enemy => {
+                        if (player.position.distanceTo(enemy.position) < 15) {
+                            enemy.userData.health -= skill.damage;
+                        }
+                    });
+                    showMessage('⚡ 闪电打击!');
+                    break;
+            }
+            
+            let cooldownTime = skill.cooldown / 1000;
+            const cooldownInterval = setInterval(() => {
+                cooldownTime--;
+                cooldownOverlay.textContent = cooldownTime;
+                if (cooldownTime <= 0) {
+                    clearInterval(cooldownInterval);
+                    skill.ready = true;
+                    cooldownOverlay.style.display = 'none';
+                }
+            }, 1000);
+            
+            updateUI();
+        }
+        
+        function attack() {
+            if (!gameStarted) return;
+            const attackDir = new THREE.Vector3(0, 0, -1);
+            attackDir.applyQuaternion(camera.quaternion);
+            
+            enemies.forEach(enemy => {
+                const toEnemy = enemy.position.clone().sub(player.position).normalize();
+                const angle = attackDir.angleTo(toEnemy);
+                if (angle < 0.5) {
+                    const dist = player.position.distanceTo(enemy.position);
+                    if (dist < 8) {
+                        let damage = 15 + Math.random() * 10;
+                        if (playerStats.shield) damage *= 0.5;
+                        enemy.userData.health -= damage;
+                        enemy.position.add(toEnemy.multiplyScalar(-2));
+                        showMessage('💥 命中!');
+                    }
+                }
+            });
+        }
+        
+        function showMessage(msg) {
+            const feed = document.getElementById('kill-feed');
+            const entry = document.createElement('div');
+            entry.className = 'kill-entry';
+            entry.textContent = msg;
+            feed.insertBefore(entry, feed.firstChild);
+            setTimeout(() => entry.remove(), 3000);
+        }
+        
+        function updateTimer() {
+            const min = Math.floor(timeRemaining / 60);
+            const sec = timeRemaining % 60;
+            document.getElementById('timer').textContent = `${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
+            if (timeRemaining <= 0) endGame();
+        }
+        
+        function updateScoreboard() {
+            const scoreList = document.getElementById('score-list');
+            scoreList.innerHTML = '';
+            
+            const playerEntry = document.createElement('div');
+            playerEntry.className = 'score-entry player';
+            playerEntry.innerHTML = `<span>👤 你</span><span>❤️ ${Math.floor(playerStats.health)}</span>`;
+            scoreList.appendChild(playerEntry);
+            
+            const sortedEnemies = [...enemies].sort((a, b) => b.userData.health - a.userData.health);
+            sortedEnemies.forEach(enemy => {
+                if (enemy.userData.health > 0) {
+                    const entry = document.createElement('div');
+                    entry.className = 'score-entry';
+                    entry.innerHTML = `<span>${enemy.userData.name}</span><span>❤️ ${Math.floor(enemy.userData.health)}</span>`;
+                    scoreList.appendChild(entry);
+                }
+            });
+        }
+        
+        function updateUI() {
+            document.getElementById('health-value').textContent = Math.floor(playerStats.health);
+            document.getElementById('health-fill').style.width = `${(playerStats.health / playerStats.maxHealth) * 100}%`;
+            document.getElementById('mana-value').textContent = Math.floor(playerStats.mana);
+            document.getElementById('mana-fill').style.width = `${(playerStats.mana / playerStats.maxMana) * 100}%`;
+        }
+        
+        function endGame() {
+            gameStarted = false;
+            document.getElementById('winner-screen').style.display = 'flex';
+            const aliveEnemies = enemies.filter(e => e.userData.health > 0).length;
+            
+            if (playerStats.health > 0 && aliveEnemies === 0) {
+                document.getElementById('winner-text').textContent = '🏆 胜利!';
+                document.getElementById('winner-stats').textContent = `击杀: ${playerStats.kills} | 存活时间: ${180 - timeRemaining}秒`;
+            } else {
+                document.getElementById('winner-text').textContent = '💀 失败';
+                document.getElementById('winner-stats').textContent = `击杀: ${playerStats.kills} | 存活时间: ${180 - timeRemaining}秒`;
+            }
+        }
+        
+        function restartGame() {
+            document.getElementById('winner-screen').style.display = 'none';
+            document.getElementById('kill-feed').innerHTML = '';
+            enemies.forEach(e => scene.remove(e));
+            enemies = [];
+            spawnEnemies(5);
+            startGame(gameMode);
+        }
+        
+        function update() {
+            if (!gameStarted) return;
+            
+            const speed = 0.3;
+            if (keys.w) player.position.z -= speed;
+            if (keys.s) player.position.z += speed;
+            if (keys.a) player.position.x -= speed;
+            if (keys.d) player.position.x += speed;
+            
+            // Boundary check
+            const boundary = ARENA_SIZE / 2 - 2;
+            player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
+            player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
+            
+            // Update camera
+            camera.position.x = player.position.x;
+            camera.position.z = player.position.z + 8;
+            camera.position.y = 6;
+            camera.rotation.y = playerRotation.y;
+            
+            // Update enemies
+            enemies.forEach((enemy, idx) => {
+                if (enemy.userData.health <= 0) return;
+                
+                const toPlayer = player.position.clone().sub(enemy.position);
+                const dist = toPlayer.length();
+                
+                if (dist > 3) {
+                    enemy.position.add(toPlayer.normalize().multiplyScalar(enemy.userData.speed));
+                }
+                
+                // Enemy attack
+                if (dist < 2) {
+                    let damage = 5 + Math.random() * 5;
+                    if (playerStats.shield) damage *= 0.5;
+                    playerStats.health -= damage;
+                    
+                    document.getElementById('damage-overlay').style.opacity = 0.5;
+                    setTimeout(() => document.getElementById('damage-overlay').style.opacity = 0, 100);
+                }
+                
+                // Check death
+                if (playerStats.health <= 0) {
+                    playerStats.deaths++;
+                    endGame();
+                }
+            });
+            
+            // Update projectiles
+            projectiles.forEach((proj, idx) => {
+                proj.position.add(proj.userData.velocity);
+                proj.userData.life--;
+                
+                // Collision with enemies
+                enemies.forEach(enemy => {
+                    if (proj.position.distanceTo(enemy.position) < 1.5) {
+                        enemy.userData.health -= proj.userData.damage;
+                        proj.userData.life = 0;
+                        showMessage('💥 命中!');
+                    }
+                });
+                
+                if (proj.userData.life <= 0) {
+                    scene.remove(proj);
+                    projectiles.splice(idx, 1);
+                }
+            });
+            
+            // Remove dead enemies
+            enemies.forEach((enemy, idx) => {
+                if (enemy.userData.health <= 0) {
+                    scene.remove(enemy);
+                    enemies.splice(idx, 1);
+                    playerStats.kills++;
+                    showMessage('🎯 击杀 ' + enemy.userData.name);
+                }
+            });
+            
+            // Check win condition
+            if (enemies.length === 0 && playerStats.health > 0) {
+                endGame();
+            }
+            
+            // Mana regen
+            if (playerStats.mana < playerStats.maxMana) {
+                playerStats.mana += 0.05;
+            }
+            
+            updateUI();
+            updateScoreboard();
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+        
+        function onKeyDown(e) {
+            if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true;
+            if (e.key >= '1' && e.key <= '6') useSkill(parseInt(e.key) - 1);
+        }
+        
+        function onKeyUp(e) {
+            if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false;
+        }
+        
+        function onMouseMove(e) {
+            if (document.pointerLockElement) {
+                playerRotation.y -= e.movementX * 0.002;
+            }
+        }
+        
+        function onClick() {
+            if (gameStarted) {
+                renderer.domElement.requestPointerLock();
+                attack();
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        initThreeJS();
+        animate();
+    </script>
+</body>
+</html>
